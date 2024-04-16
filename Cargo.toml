@@ -1,0 +1,26 @@
+[package]
+name = "url-shortener-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "url-shortener-rs"
+
+
+[dependencies]
+anyhow = "1.0.82"
+axum = "0.7.5"
+config = "0.14.0"
+serde = { version = "1.0.197", features = ["derive"] }
+sqlx = {version = "0.7.4", features = ["runtime-tokio", "tls-native-tls", "sqlite"]}
+tokio = { version = "1.37.0", features = ["full"] }
+tower = {version = "0.4.13", features = ["full"]}
+tower-http = {version = "0.5.2", features = ["add-extension", "auth", "compression-full", "limit", "trace"]}
+tower-layer = "0.3.2"
+tracing = "0.1.40"
+tracing-subscriber = {version = "0.3.18", features = ["json"]}

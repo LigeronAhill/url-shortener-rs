@@ -1,0 +1,6 @@
+env = "local"
+storage_path = "sqlite://storage.db"
+[http_server]
+address = "0.0.0.0:8082"
+timeout = 4
+idle_timeout = 60
