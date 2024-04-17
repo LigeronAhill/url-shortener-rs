@@ -1,5 +1,6 @@
 mod handlers;
 use std::borrow::Cow;
+use std::sync::Arc;
 
 use axum::{
     error_handling::HandleErrorLayer, http::StatusCode, response::IntoResponse, routing::post,
@@ -9,6 +10,7 @@ use tower::{BoxError, ServiceBuilder};
 use tower_http::trace::TraceLayer;
 
 use crate::{config::Configuration, gen_alias::Generator, storage::sqlite::SqliteStorage};
+use crate::storage::Repository;
 
 pub fn app(config: &Configuration, storage: SqliteStorage) -> Router {
     let state = AppState::new(storage, config);
@@ -46,11 +48,11 @@ async fn handle_error(error: BoxError) -> impl IntoResponse {
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub generator: Generator,
-    pub storage: SqliteStorage,
+    pub storage: Arc<dyn Repository>,
 }
 impl AppState {
-    pub fn new(storage: SqliteStorage, config: &Configuration) -> Self {
+    pub fn new(storage: impl Repository + 'static, config: &Configuration) -> Self {
         let generator = Generator::new(config);
-        Self { storage, generator }
+        Self { storage: Arc::new(storage), generator }
     }
 }
