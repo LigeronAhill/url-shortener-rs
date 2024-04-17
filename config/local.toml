@@ -5,3 +5,5 @@ alias_length = 6
 address = "0.0.0.0:8082"
 timeout = 4
 idle_timeout = 60
+user = "test"
+password = "test"

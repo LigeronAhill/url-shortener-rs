@@ -6,6 +6,7 @@ pub mod server;
 pub mod storage;
 pub mod telemetry;
 use tokio::net::TcpListener;
+use tokio::signal;
 use tracing::{debug, error, info};
 pub async fn run() -> Result<()> {
     // init config
@@ -28,6 +29,32 @@ pub async fn run() -> Result<()> {
 
     // run server
     info!("Starting server at '{}'", conf.http_server.address);
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }

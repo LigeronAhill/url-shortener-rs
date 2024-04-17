@@ -18,6 +18,8 @@ impl Default for Configuration {
                 address: String::from("0.0.0.0:3000"),
                 timeout: 4,
                 idle_timeout: 60,
+                user: String::from("test"),
+                password: String::from("test"),
             },
         }
     }
@@ -34,6 +36,8 @@ pub struct HttpServer {
     pub address: String,
     pub timeout: i32,
     pub idle_timeout: i32,
+    pub user: String,
+    pub password: String,
 }
 
 pub fn init(file_name: &str) -> Configuration {

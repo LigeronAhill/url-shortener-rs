@@ -1,15 +1,16 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
+use axum::routing::get;
 use axum::{
-    error_handling::HandleErrorLayer, http::StatusCode, response::IntoResponse, Router,
-    routing::post,
+    error_handling::HandleErrorLayer, http::StatusCode, response::IntoResponse, routing::post,
+    Router,
 };
 use tower::{BoxError, ServiceBuilder};
 use tower_http::trace::TraceLayer;
 
-use crate::{config::Configuration, gen_alias::Generator};
 use crate::storage::Repository;
+use crate::{config::Configuration, gen_alias::Generator};
 
 mod handlers;
 pub use handlers::url::UrlRequest;
@@ -17,6 +18,7 @@ pub use handlers::url::UrlRequest;
 pub fn app(config: &Configuration, storage: impl Repository + 'static) -> Router {
     let state = AppState::new(storage, config);
     Router::new()
+        .route("/:alias", get(handlers::redirect::redirect_url))
         .route("/url", post(handlers::url::save_url))
         .layer(
             ServiceBuilder::new()
@@ -51,10 +53,15 @@ async fn handle_error(error: BoxError) -> impl IntoResponse {
 pub struct AppState {
     pub generator: Generator,
     pub storage: Arc<dyn Repository>,
+    pub config: Configuration,
 }
 impl AppState {
     pub fn new(storage: impl Repository + 'static, config: &Configuration) -> Self {
         let generator = Generator::new(config);
-        Self { storage: Arc::new(storage), generator }
+        Self {
+            storage: Arc::new(storage),
+            generator,
+            config: config.clone(),
+        }
     }
 }

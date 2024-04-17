@@ -1,9 +1,9 @@
+use crate::storage::Repository;
 use crate::{config::Configuration, AppError};
 use anyhow::Result;
 use axum::async_trait;
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Row, Sqlite, SqlitePool};
 use tracing::{info, instrument};
-use crate::storage::Repository;
 
 #[derive(Debug, Clone)]
 pub struct SqliteStorage {
@@ -24,16 +24,6 @@ impl SqliteStorage {
         Ok(())
     }
     #[instrument]
-    pub async fn get_url<T: ToString + std::fmt::Debug>(&self, alias: T) -> crate::Result<String> {
-        let qr = sqlx::query("SELECT url FROM url WHERE alias = ?")
-            .bind(alias.to_string())
-            .fetch_optional(&self.db)
-            .await?
-            .ok_or(AppError::UrlNotFound)?;
-        let x: String = qr.get("url");
-        Ok(x)
-    }
-    #[instrument]
     pub async fn delete_url<T: ToString + std::fmt::Debug>(&self, alias: T) -> crate::Result<()> {
         let qr = sqlx::query("DELETE FROM url WHERE alias = ?")
             .bind(alias.to_string())
@@ -48,13 +38,8 @@ impl SqliteStorage {
 }
 #[async_trait]
 impl Repository for SqliteStorage {
-
     #[instrument]
-    async fn save_url(
-        &self,
-        url_to_save: url::Url,
-        alias: String,
-    ) -> crate::Result<i64> {
+    async fn save_url(&self, url_to_save: url::Url, alias: String) -> crate::Result<i64> {
         match sqlx::query("INSERT INTO url(url, alias) VALUES (?, ?)")
             .bind(url_to_save.to_string())
             .bind(alias)
@@ -72,6 +57,16 @@ impl Repository for SqliteStorage {
                 }
             }
         }
+    }
+    #[instrument]
+    async fn get_url(&self, alias: String) -> crate::Result<String> {
+        let qr = sqlx::query("SELECT url FROM url WHERE alias = ?")
+            .bind(alias)
+            .fetch_optional(&self.db)
+            .await?
+            .ok_or(AppError::UrlNotFound)?;
+        let x: String = qr.get("url");
+        Ok(x)
     }
 }
 
