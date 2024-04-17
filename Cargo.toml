@@ -17,7 +17,7 @@ anyhow = "1.0.82"
 axum = "0.7.5"
 config = "0.14.0"
 rand = "0.8.5"
-serde = { version = "1.0.197", features = ["derive"] }
+serde = { version = "1.0.198", features = ["derive"] }
 sqlx = {version = "0.7.4", features = ["runtime-tokio", "tls-native-tls", "sqlite"]}
 tokio = { version = "1.37.0", features = ["full"] }
 tower = {version = "0.4.13", features = ["full"]}
@@ -27,3 +27,6 @@ tracing = "0.1.40"
 tracing-subscriber = {version = "0.3.18", features = ["json"]}
 url = { version = "2.5.0", features = ["serde"] }
 async-trait = "0.1.80"
+serde_json = "1.0.116"
+mime = "0.3.17"
+reqwest = { version = "0.12.3", features = ["json"] }

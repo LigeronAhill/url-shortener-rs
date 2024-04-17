@@ -1,18 +1,20 @@
-mod handlers;
 use std::borrow::Cow;
 use std::sync::Arc;
 
 use axum::{
-    error_handling::HandleErrorLayer, http::StatusCode, response::IntoResponse, routing::post,
-    Router,
+    error_handling::HandleErrorLayer, http::StatusCode, response::IntoResponse, Router,
+    routing::post,
 };
 use tower::{BoxError, ServiceBuilder};
 use tower_http::trace::TraceLayer;
 
-use crate::{config::Configuration, gen_alias::Generator, storage::sqlite::SqliteStorage};
+use crate::{config::Configuration, gen_alias::Generator};
 use crate::storage::Repository;
 
-pub fn app(config: &Configuration, storage: SqliteStorage) -> Router {
+mod handlers;
+pub use handlers::url::UrlRequest;
+
+pub fn app(config: &Configuration, storage: impl Repository + 'static) -> Router {
     let state = AppState::new(storage, config);
     Router::new()
         .route("/url", post(handlers::url::save_url))

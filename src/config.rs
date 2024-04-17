@@ -15,7 +15,7 @@ impl Default for Configuration {
             storage_path: String::from("storage.db"),
             alias_length: 6,
             http_server: HttpServer {
-                address: String::from("0.0.0.0:8080"),
+                address: String::from("0.0.0.0:3000"),
                 timeout: 4,
                 idle_timeout: 60,
             },
