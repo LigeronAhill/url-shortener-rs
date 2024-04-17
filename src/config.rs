@@ -5,6 +5,7 @@ use serde::Deserialize;
 pub struct Configuration {
     pub env: Env,
     pub storage_path: String,
+    pub alias_length: i32,
     pub http_server: HttpServer,
 }
 impl Default for Configuration {
@@ -12,6 +13,7 @@ impl Default for Configuration {
         Configuration {
             env: Env::Local,
             storage_path: String::from("storage.db"),
+            alias_length: 6,
             http_server: HttpServer {
                 address: String::from("0.0.0.0:8080"),
                 timeout: 4,

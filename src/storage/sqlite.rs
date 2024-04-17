@@ -1,11 +1,11 @@
 use crate::{config::Configuration, AppError};
 use anyhow::Result;
-use sqlx::{Pool, Row, Sqlite, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, Pool, Row, Sqlite, SqlitePool};
 use tracing::{info, instrument};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SqliteStorage {
-    db: Pool<Sqlite>,
+    pub db: Pool<Sqlite>,
 }
 impl SqliteStorage {
     pub async fn check(&self) -> Result<()> {
@@ -24,7 +24,7 @@ impl SqliteStorage {
     #[instrument]
     pub async fn save_url<T: ToString + std::fmt::Debug>(
         &self,
-        url_to_save: T,
+        url_to_save: url::Url,
         alias: T,
     ) -> crate::Result<i64> {
         match sqlx::query("INSERT INTO url(url, alias) VALUES (?, ?)")
@@ -55,11 +55,25 @@ impl SqliteStorage {
         let x: String = qr.get("url");
         Ok(x)
     }
+    #[instrument]
+    pub async fn delete_url<T: ToString + std::fmt::Debug>(&self, alias: T) -> crate::Result<()> {
+        let qr = sqlx::query("DELETE FROM url WHERE alias = ?")
+            .bind(alias.to_string())
+            .execute(&self.db)
+            .await?;
+        if qr.rows_affected() == 0 {
+            Err(AppError::UrlNotFound)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 pub async fn init(config: &Configuration) -> Result<SqliteStorage> {
-    let db_url = &config.storage_path;
-    let db = SqlitePool::connect(db_url).await?;
+    let options = SqliteConnectOptions::new()
+        .filename(&config.storage_path)
+        .create_if_missing(true);
+    let db = SqlitePool::connect_with(options).await?;
     let sql = r"
         CREATE TABLE IF NOT EXISTS url(
     		id INTEGER PRIMARY KEY,

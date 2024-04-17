@@ -1,6 +1,33 @@
 pub mod config;
 mod error;
 pub use error::{AppError, Result};
-mod storage;
-pub use storage::sqlite;
+pub mod gen_alias;
+pub mod server;
+pub mod storage;
 pub mod telemetry;
+use tokio::net::TcpListener;
+use tracing::{debug, error, info};
+pub async fn run() -> Result<()> {
+    // init config
+    let conf = config::init("config/local.toml");
+
+    // init logger
+    telemetry::set_subscriber(&conf)?;
+    info!("Starting url-shortener with '{:?}' env", conf.env);
+    debug!("Debug messages are enabled");
+    error!("Error messages are enabled");
+
+    // init storage: sqlx, sqlite
+    info!("Initializing DB");
+    let storage = storage::sqlite::init(&conf).await?;
+
+    // init router: axum
+    info!("Initializing server");
+    let app = server::app(&conf, storage);
+    let listener = TcpListener::bind(&conf.http_server.address).await?;
+
+    // run server
+    info!("Starting server at '{}'", conf.http_server.address);
+    axum::serve(listener, app).await?;
+    Ok(())
+}

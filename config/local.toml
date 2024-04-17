@@ -1,5 +1,6 @@
 env = "local"
-storage_path = "sqlite://storage.db"
+storage_path = "storage.db"
+alias_length = 6
 [http_server]
 address = "0.0.0.0:8082"
 timeout = 4

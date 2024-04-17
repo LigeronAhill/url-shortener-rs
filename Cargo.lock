@@ -2231,6 +2231,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]
@@ -2240,6 +2241,7 @@ dependencies = [
  "anyhow",
  "axum",
  "config",
+ "rand",
  "serde",
  "sqlx",
  "tokio",
@@ -2248,6 +2250,7 @@ dependencies = [
  "tower-layer",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
