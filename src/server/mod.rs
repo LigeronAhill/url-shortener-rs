@@ -1,25 +1,25 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use axum::routing::get;
-use axum::{
-    error_handling::HandleErrorLayer, http::StatusCode, response::IntoResponse, routing::post,
-    Router,
-};
+use axum::{error_handling::HandleErrorLayer, http::StatusCode, response::IntoResponse, Router};
 use tower::{BoxError, ServiceBuilder};
 use tower_http::trace::TraceLayer;
 
+pub use handlers::url::{ResponseStatus, UrlRequest, UrlResponse};
+
+use crate::server::handlers::redirect::redirect_routes;
+use crate::server::handlers::url::url_routes;
 use crate::storage::Repository;
 use crate::{config::Configuration, gen_alias::Generator};
 
 mod handlers;
-pub use handlers::url::UrlRequest;
 
 pub fn app(config: &Configuration, storage: impl Repository + 'static) -> Router {
     let state = AppState::new(storage, config);
     Router::new()
-        .route("/:alias", get(handlers::redirect::redirect_url))
-        .route("/url", post(handlers::url::save_url))
+        .nest("/", redirect_routes(state.clone()))
+        .nest("/url", url_routes(state.clone()))
+        // .route("/url", post(handlers::url::save_url))
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(handle_error))
@@ -30,7 +30,6 @@ pub fn app(config: &Configuration, storage: impl Repository + 'static) -> Router
                 ))
                 .layer(TraceLayer::new_for_http()),
         )
-        .with_state(state)
 }
 async fn handle_error(error: BoxError) -> impl IntoResponse {
     if error.is::<tower::timeout::error::Elapsed>() {

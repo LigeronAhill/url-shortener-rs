@@ -1,146 +1,127 @@
+use axum::{extract::State, Json, middleware, Router};
+use axum::extract::Request;
 use axum::http::StatusCode;
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::middleware::Next;
+use axum::response::Response;
+use axum::routing::post;
 use axum_auth::AuthBasic;
 use serde::{Deserialize, Serialize};
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
+use crate::AppError;
 use crate::server::AppState;
+
+pub fn url_routes(state: AppState) -> Router {
+    Router::new()
+        .route("/", post(save_url))
+        .route_layer(middleware::from_fn_with_state(state.clone(), check_auth))
+        .with_state(state)
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UrlRequest {
-    pub url: url::Url,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UrlResponse {
-    pub status: Status,
+    pub status: ResponseStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
 }
-#[instrument]
-pub async fn save_url(
+pub async fn check_auth(
     State(state): State<AppState>,
     auth: Option<AuthBasic>,
-    Json(body): Json<UrlRequest>,
-) -> impl IntoResponse {
-    info!("Got request: {body:#?}");
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
     if let Some(a) = auth {
         let (user, password) = a.0;
         if user == state.config.http_server.user
             && password.is_some_and(|p| p == state.config.http_server.password)
         {
-            let alias = body
-                .alias
-                .unwrap_or_else(|| state.generator.generate_alias());
-            if alias.len() < 4 {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(UrlResponse {
-                        status: Status::Error,
-                        error: Some(String::from("alias length must be greater than 4")),
-                        alias: None,
-                    }),
-                );
-            }
-            match state.storage.save_url(body.url, alias.clone()).await {
-                Ok(id) => {
-                    info!("url saved with id: {id}");
-                    (
-                        StatusCode::OK,
-                        Json(UrlResponse {
-                            status: Status::Ok,
-                            error: None,
-                            alias: Some(alias),
-                        }),
-                    )
-                }
-                Err(e) => {
-                    error!("Error while saving url: {e:?}");
-                    match e {
-                        crate::AppError::Custom(e) => (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(UrlResponse {
-                                status: Status::Error,
-                                error: Some(e.to_string()),
-                                alias: None,
-                            }),
-                        ),
-                        crate::AppError::UrlExists => (
-                            StatusCode::BAD_REQUEST,
-                            Json(UrlResponse {
-                                status: Status::Error,
-                                error: Some(String::from("alias already exists")),
-                                alias: None,
-                            }),
-                        ),
-                        _ => (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(UrlResponse {
-                                status: Status::Error,
-                                error: Some(String::from("Database error")),
-                                alias: None,
-                            }),
-                        ),
-                    }
-                }
-            }
+            Ok(next.run(req).await)
         } else {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(UrlResponse {
-                    status: Status::Error,
-                    error: Some(String::from("unauthorized")),
-                    alias: None,
-                }),
-            );
+            Err(StatusCode::UNAUTHORIZED)
         }
     } else {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(UrlResponse {
-                status: Status::Error,
-                error: Some(String::from("unauthorized")),
-                alias: None,
-            }),
-        );
+        Err(StatusCode::UNAUTHORIZED)
     }
 }
-#[derive(Serialize, Debug, Clone)]
-pub enum Status {
+#[instrument]
+pub async fn save_url(
+    State(state): State<AppState>,
+    Json(body): Json<UrlRequest>,
+) -> crate::Result<Json<UrlResponse>> {
+    info!("Got request: {body:#?}");
+    let url = url::Url::parse(&body.url).map_err(|_| AppError::UrlError)?;
+    let alias = body
+        .alias
+        .unwrap_or_else(|| state.generator.generate_alias());
+    if alias.len() < 4 {
+        return Err(AppError::ToShortAlias);
+    }
+    let id = state.storage.save_url(url, alias.clone()).await?;
+    info!("url saved with id: {id}");
+    Ok(Json(UrlResponse {
+        status: ResponseStatus::Ok,
+        error: None,
+        alias: Some(alias),
+    }))
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum ResponseStatus {
     Ok,
     Error,
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::server::app;
-    use crate::storage;
-    use axum::body::Body;
-    use axum::http;
-    use axum::http::{Request, StatusCode};
-    use serde_json::json;
-    use tower::ServiceExt;
+    use axum::http::StatusCode;
+
+    use crate::server::UrlRequest;
 
     #[tokio::test]
     async fn test_save_url() -> crate::Result<()> {
-        let conf = crate::config::init("config/local.toml");
-        let storage = storage::sqlite::init(&conf).await?;
-        let app = app(&conf, storage);
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method(http::Method::POST)
-                    .uri("/url")
-                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                    .body(Body::from(serde_json::to_string(
-                        &json!({"url": "https://google.com"}),
-                    )?))?,
-            )
+        tokio::spawn(async move {
+            crate::test_run().await.unwrap()
+        }
+        );
+        let uri = "http://localhost:3000/url";
+        let client = reqwest::Client::new();
+        let body = UrlRequest {
+            url: "https://google.com".to_string(),
+            alias: None,
+        };
+        let response = client
+            .post(uri)
+            .basic_auth("test", Some("test"))
+            .json(&body)
+            .send()
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
+        let response = client
+            .post(uri)
+            .json(&body)
+            .send()
+            .await?;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body = UrlRequest {
+            url: "google.com".to_string(),
+            alias: None,
+        };
+        let response = client
+            .post(uri)
+            .json(&body)
+            .basic_auth("test", Some("test"))
+            .send()
+            .await?;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         Ok(())
     }
 }
