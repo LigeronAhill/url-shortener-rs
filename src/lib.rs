@@ -34,11 +34,10 @@ pub async fn run() -> Result<()> {
         .await?;
     Ok(())
 }
-pub async fn test_run() -> Result<()> {
+pub async fn test_run(listener: TcpListener) -> Result<()> {
     let conf = config::Configuration::default();
     let storage = storage::sqlite::init(&conf).await?;
     let app = server::app(&conf, storage);
-    let listener = TcpListener::bind(&conf.http_server.address).await?;
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;

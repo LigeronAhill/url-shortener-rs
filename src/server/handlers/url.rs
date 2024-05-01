@@ -1,15 +1,15 @@
-use axum::{extract::State, Json, middleware, Router};
 use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::post;
+use axum::{extract::State, middleware, Json, Router};
 use axum_auth::AuthBasic;
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
 
-use crate::AppError;
 use crate::server::AppState;
+use crate::AppError;
 
 pub fn url_routes(state: AppState) -> Router {
     Router::new()
@@ -83,16 +83,16 @@ pub enum ResponseStatus {
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
+    use tokio::net::TcpListener;
 
     use crate::server::UrlRequest;
 
     #[tokio::test]
     async fn test_save_url() -> crate::Result<()> {
-        tokio::spawn(async move {
-            crate::test_run().await.unwrap()
-        }
-        );
-        let uri = "http://localhost:3000/url";
+        let listener = TcpListener::bind("0.0.0.0:0").await?;
+        let address = listener.local_addr()?;
+        tokio::spawn(async move { crate::test_run(listener).await.unwrap() });
+        let uri = &format!("http://0.0.0.0:{}/url", address.port());
         let client = reqwest::Client::new();
         let body = UrlRequest {
             url: "https://google.com".to_string(),
@@ -105,11 +105,7 @@ mod tests {
             .send()
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
-        let response = client
-            .post(uri)
-            .json(&body)
-            .send()
-            .await?;
+        let response = client.post(uri).json(&body).send().await?;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         let body = UrlRequest {
             url: "google.com".to_string(),
